@@ -2,5 +2,17 @@
 	path = NEMU-Matrix
 	url = https://github.com/cailuoshan/NEMU-Matrix.git
 [submodule "tl-test-new"]
-	path = tl-test-new
+	path = tl-test-new-matrix
 	url = https://github.com/OpenXiangShan/tl-test-new.git
+[submodule "Matrix-tests"]
+	path = Matrix-tests
+	url = https://github.com/Ivyfeather/Matrix-tests
+[submodule "linux-kernel/nemu_board"]
+	path = linux-kernel/nemu_board
+	url = https://github.com/OpenXiangShan/nemu_board.git
+[submodule "linux-kernel/opensbi"]
+	path = linux-kernel/opensbi
+	url = https://github.com/riscv-software-src/opensbi.git
+[submodule "linux-kernel/riscv-rootfs"]
+	path = linux-kernel/riscv-rootfs
+	url = https://github.com/OpenXiangShan/riscv-rootfs
