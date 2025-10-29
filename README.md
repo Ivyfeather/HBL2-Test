@@ -4,9 +4,28 @@ This repository contains the test framework for HBL2 (High Bandwidth L2 Cache). 
 
 ## Submodules
 
+### Matrix-tests
+- **Repository**: https://github.com/Ivyfeather/Matrix-tests
+- **Purpose**: Contains test cases for matrix operations that can be compiled into workloads for RISC-V architecture
+
 ### NEMU-Matrix
 - **Repository**: https://github.com/cailuoshan/NEMU-Matrix.git
-- **Purpose**: NEMU is used to generate traces for testing
+- **Purpose**: NEMU (NJU Emulator) is used to run workloads and generate memory access traces for testing
+
+### linux-kernel
+This directory contains submodules for building Linux kernel workloads:
+
+#### nemu_board
+- **Repository**: https://github.com/OpenXiangShan/nemu_board.git
+- **Purpose**: Provides device tree files and kernel configuration for building Linux kernel workloads
+
+#### opensbi
+- **Repository**: https://github.com/riscv-software-src/opensbi.git
+- **Purpose**: RISC-V Open Source Supervisor Binary Interface, used as the bootloader for Linux kernel
+
+#### riscv-rootfs
+- **Repository**: https://github.com/OpenXiangShan/riscv-rootfs
+- **Purpose**: Root filesystem for building initramfs that contains workloads to run in Linux
 
 ### tl-test-new
 - **Repository**: https://github.com/OpenXiangShan/tl-test-new.git
@@ -26,7 +45,198 @@ If you've already cloned the repository without submodules, initialize them with
 git submodule update --init --recursive
 ```
 
-## Workflow
+## Usage
 
-1. **Generate traces** using NEMU-Matrix
-2. **Run hardware simulation** with tl-test-new using the generated traces
+### Quick Start with run.sh
+
+The `run.sh` script provides a convenient way to build and run workloads:
+
+```bash
+# Set up environment variables first
+source env.sh
+
+# Build matrix workload and linux kernel
+./run.sh -m -l
+
+# Build NEMU
+./run.sh -n
+
+# Run workload on NEMU and generate address sequences
+./run.sh -r
+```
+
+Available options:
+- `-m`: Build matrix workload (requires `-l` to also be set)
+- `-n`: Build NEMU
+- `-l`: Build linux kernel and OpenSBI
+- `-r`: Run workload on NEMU and process traces
+
+### Detailed Workflow
+
+#### 1. Building Linux Kernel Workload
+
+The linux kernel workload is built using OpenSBI, Linux kernel, and rootfs. This process involves:
+
+**Prerequisites:**
+- RISC-V toolchain installed (with prefix `riscv64-unknown-linux-gnu-` or `riscv64-linux-gnu-`)
+- Environment variables set (automatically done by `source env.sh`)
+
+**Steps:**
+
+1. **Download and prepare Linux kernel** (if not already present):
+   ```bash
+   cd linux-kernel
+   # Download Linux kernel 6.10.3
+   wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.10.3.tar.xz
+   tar -xf linux-6.10.3.tar.xz
+   cd ..
+   ```
+
+2. **Set environment variables**:
+   ```bash
+   source env.sh
+   ```
+   This sets up:
+   - `RISCV_LINUX_HOME`: Linux kernel path
+   - `RISCV_ROOTFS_HOME`: riscv-rootfs path
+   - `WORKLOAD_BUILD_ENV_HOME`: nemu_board path
+   - `OPENSBI_HOME`: OpenSBI path
+   - `RISCV`: RISC-V toolchain installation path
+   - `ARCH=riscv` and `CROSS_COMPILE` for cross-compilation
+
+3. **Build rootfs**:
+   The rootfs is built using `riscv-rootfs` which contains the workloads to run in Linux. The default initramfs configuration is `riscv-rootfs/rootfsimg/initramfs-emu.txt`.
+
+4. **Build device tree**:
+   ```bash
+   cd linux-kernel/nemu_board/dts
+   # Configure platform.dtsi to link to platform_noop.dtsi
+   cd ..
+   ./build_single_core_for_nemu.sh
+   ```
+   This generates `xiangshan.dtb` in the build directory.
+
+5. **Build Linux kernel**:
+   ```bash
+   cd linux-kernel/linux-6.10.3
+   # Copy kernel configuration
+   cp ../nemu_board/configs/xiangshan_defconfig arch/riscv/configs/xiangshan_defconfig
+   # Configure kernel
+   make xiangshan_defconfig
+   # Optional: customize configuration
+   make menuconfig
+   # Build kernel
+   make -j
+   ```
+
+6. **Build OpenSBI and link with kernel**:
+   ```bash
+   cd linux-kernel/opensbi
+   make PLATFORM=generic \
+        FW_PAYLOAD_PATH=$RISCV_LINUX_HOME/arch/riscv/boot/Image \
+        FW_FDT_PATH=$WORKLOAD_BUILD_ENV_HOME/dts/build/xiangshan.dtb \
+        FW_PAYLOAD_OFFSET=0x200000 \
+        -j
+   ```
+   This generates `fw_payload.bin` in `build/platform/generic/firmware/`.
+
+#### 2. Building Matrix Test Workload
+
+The Matrix-tests repository contains simple test programs that can be compiled into workloads:
+
+```bash
+cd Matrix-tests
+./compiler.sh ./isa/xiangshan_mul_full.c
+cd ..
+```
+
+#### 3. Building NEMU
+
+Build the NEMU emulator:
+
+```bash
+cd NEMU-Matrix
+make -j
+cd ..
+```
+
+#### 4. Running Workload on NEMU
+
+Run the workload binary on NEMU:
+
+```bash
+cd NEMU-Matrix
+./build/riscv64-nemu-interpreter -b ../linux-kernel/opensbi/build/platform/generic/firmware/fw_payload.bin \
+    1> seesee5.txt 2> stderr.txt
+cd ..
+```
+
+This executes the workload and outputs trace information to `seesee5.txt`.
+
+#### 5. Processing Traces to Generate Address Sequences
+
+Use `addr.py` in NEMU-Matrix to process the trace and generate address sequences:
+
+```bash
+cd NEMU-Matrix
+python3 addr.py
+cd ..
+```
+
+This script parses the trace file and extracts memory access patterns for further analysis.
+
+### Advanced: Building SPEC2006 Workloads
+
+For running SPEC2006 or other benchmark programs as SimPoint profiling and checkpoint workloads:
+
+1. **Reconfigure kernel for SPEC**:
+   ```bash
+   cd linux-kernel/linux-6.10.3
+   make menuconfig
+   # Change initramfs source from initramfs-emu.txt to initramfs-spec.txt
+   ```
+
+2. **Modify rootfs**:
+   Update `riscv-rootfs/rootfsimg/initramfs-spec.txt` to include SPEC2006 binaries and test scripts.
+
+3. **Rebuild kernel**:
+   ```bash
+   make -j
+   ```
+
+4. **Rebuild OpenSBI**:
+   ```bash
+   cd ../opensbi
+   rm -rf build
+   # Check if Image size exceeds 32MB
+   IMAGE_SIZE=$(stat -f%z $RISCV_LINUX_HOME/arch/riscv/boot/Image 2>/dev/null || stat -c%s $RISCV_LINUX_HOME/arch/riscv/boot/Image)
+   
+   if [ $IMAGE_SIZE -gt 33554432 ]; then
+       # If Image > 32MB, calculate FW_PAYLOAD_FDT_ADDR
+       # FW_PAYLOAD_FDT_ADDR = (Image size + 2M + 0x80000000) aligned to 1M
+       make PLATFORM=generic \
+            FW_PAYLOAD_PATH=$RISCV_LINUX_HOME/arch/riscv/boot/Image \
+            FW_FDT_PATH=$WORKLOAD_BUILD_ENV_HOME/dts/build/xiangshan.dtb \
+            FW_PAYLOAD_OFFSET=0x100000 \
+            FW_PAYLOAD_FDT_ADDR=<calculated_address> \
+            -j
+   else
+       # If Image <= 32MB
+       make PLATFORM=generic \
+            FW_PAYLOAD_PATH=$RISCV_LINUX_HOME/arch/riscv/boot/Image \
+            FW_FDT_PATH=$WORKLOAD_BUILD_ENV_HOME/dts/build/xiangshan.dtb \
+            FW_PAYLOAD_OFFSET=0x100000 \
+            -j
+   fi
+   ```
+
+5. **Link with gcpt** (for SimPoint profiling and checkpointing):
+   ```bash
+   # Clone gcpt repository
+   git clone https://github.com/OpenXiangShan/LibCheckpointAlpha.git
+   export GCPT_HOME=/path/to/LibCheckpointAlpha
+   
+   cd $GCPT_HOME
+   make GCPT_PAYLOAD_PATH=$OPENSBI_HOME/build/platform/generic/firmware/fw_payload.bin
+   ```
+   This generates `gcpt.bin` for SimPoint profiling and checkpoint creation.
