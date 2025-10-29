@@ -1,0 +1,6 @@
+[submodule "NEMU-Matrix"]
+	path = NEMU-Matrix
+	url = https://github.com/cailuoshan/NEMU-Matrix.git
+[submodule "tl-test-new"]
+	path = tl-test-new
+	url = https://github.com/OpenXiangShan/tl-test-new.git
