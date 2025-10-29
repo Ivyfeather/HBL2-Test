@@ -4,9 +4,28 @@ This repository contains the test framework for HBL2 (High Bandwidth L2 Cache). 
 
 ## Submodules
 
+### Matrix-tests
+- **Repository**: https://github.com/Ivyfeather/Matrix-tests
+- **Purpose**: Contains test cases for matrix operations that can be compiled into workloads for RISC-V architecture
+
 ### NEMU-Matrix
 - **Repository**: https://github.com/cailuoshan/NEMU-Matrix.git
-- **Purpose**: NEMU is used to generate traces for testing
+- **Purpose**: NEMU (NJU Emulator) is used to run workloads and generate memory access traces for testing
+
+### linux-kernel
+This directory contains submodules for building Linux kernel workloads:
+
+#### nemu_board
+- **Repository**: https://github.com/OpenXiangShan/nemu_board.git
+- **Purpose**: Provides device tree files and kernel configuration for building Linux kernel workloads
+
+#### opensbi
+- **Repository**: https://github.com/riscv-software-src/opensbi.git
+- **Purpose**: RISC-V Open Source Supervisor Binary Interface, used as the bootloader for Linux kernel
+
+#### riscv-rootfs
+- **Repository**: https://github.com/OpenXiangShan/riscv-rootfs
+- **Purpose**: Root filesystem for building initramfs that contains workloads to run in Linux
 
 ### tl-test-new
 - **Repository**: https://github.com/OpenXiangShan/tl-test-new.git
@@ -26,7 +45,40 @@ If you've already cloned the repository without submodules, initialize them with
 git submodule update --init --recursive
 ```
 
-## Workflow
+## Usage
 
-1. **Generate traces** using NEMU-Matrix
-2. **Run hardware simulation** with tl-test-new using the generated traces
+### Quick Start with run.sh
+
+The `run.sh` script provides a convenient way to build and run workloads:
+
+```bash
+# Set up environment variables first
+source env.sh
+
+# Build matrix workload and linux kernel
+./run.sh -m -l
+
+# Build NEMU
+./run.sh -n
+
+# Run workload on NEMU and generate address sequences
+./run.sh -r
+```
+
+Available options:
+- `-m`: Build matrix workload (requires `-l` to also be set)
+- `-n`: Build NEMU
+- `-l`: Build linux kernel and OpenSBI
+- `-r`: Run workload on NEMU and process traces
+
+### Download and prepare Linux kernel
+
+If not already present, download and extract the Linux kernel:
+
+```bash
+cd linux-kernel
+# Download Linux kernel 6.10.3
+wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.10.3.tar.xz
+tar -xf linux-6.10.3.tar.xz
+cd ..
+```
