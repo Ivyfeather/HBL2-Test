@@ -16,3 +16,9 @@
 [submodule "linux-kernel/riscv-rootfs"]
 	path = linux-kernel/riscv-rootfs
 	url = https://github.com/OpenXiangShan/riscv-rootfs
+[submodule "HBL2"]
+	path = HBL2
+	url = https://github.com/OpenXiangShan/HBL2.git
+[submodule "CoupledL2-base"]
+	path = CoupledL2-base
+	url = https://github.com/OpenXiangShan/CoupledL2.git
