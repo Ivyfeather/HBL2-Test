@@ -27,8 +27,8 @@ while getopts "mnlr" OPT; do
 done
 
 if [ $M -eq 1 ] && [ $L -eq 0 ]; then
-    echo "Warning: -m requires -l. Automatically enabling -n."
-    N=1
+    echo "Warning: -m requires -l. Automatically enabling -l."
+    L=1
 fi
 
 if [ $M -eq 1 ]; then
@@ -60,7 +60,7 @@ fi
 
 if [ $R -eq 1 ]; then
     echo "********** run workload on NEMU **********"
-    ${NEMU}/build/riscv64-nemu-interpreter -b ${LINUX}/opensbi/build/platform/generic/firmware/fw_payload.bin 1> ${NEMU}/seesee5.txt 2> ${NEMU}/stderr.txt
+    ${NEMU}/build/riscv64-nemu-interpreter -b ${LINUX}/opensbi/build/platform/generic/firmware/fw_payload.bin 1> ${NEMU}/stdout.txt 2> ${NEMU}/stderr.txt
     echo "Done"
 
     cd ${NEMU} && python3 addr.py && cd ${BASE}
