@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import configparser
 from pathlib import Path
+import re
 
 TESTTOP_DEFAULTS = {
     "l2_sets": 128,
@@ -24,12 +25,18 @@ MATRIX_DEFAULTS = {
     "n": 64,
 }
 
+TLTEST_DEFAULTS = {
+    "l1_sets": 32,
+    "l1_ways": 8,
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate configuration files from ini")
     parser.add_argument("--ini", required=True, help="Input ini path")
     parser.add_argument("--out-scala", help="Output Scala file path for TestTop parameters")
     parser.add_argument("--out-matrix-header", help="Output C header path for matrix M/K/N parameters")
+    parser.add_argument("--out-tltest-ini", help="Output tltest ini path for l1 cache parameters")
     return parser.parse_args()
 
 
@@ -37,6 +44,7 @@ def read_section_values(
     parser: configparser.ConfigParser,
     section_name: str,
     defaults: dict[str, int],
+    min_value: int = 1,
 ) -> dict[str, int]:
     values = dict(defaults)
     if section_name not in parser:
@@ -50,24 +58,61 @@ def read_section_values(
             value = int(section[key].strip())
         except ValueError as exc:
             raise ValueError(f"{section_name}.{key} must be an integer, got: {section[key]!r}") from exc
-        if value <= 0:
-            raise ValueError(f"{section_name}.{key} must be > 0, got: {value}")
+        if value < min_value:
+            if min_value == 0:
+                raise ValueError(f"{section_name}.{key} must be >= 0, got: {value}")
+            raise ValueError(f"{section_name}.{key} must be >= {min_value}, got: {value}")
         values[key] = value
 
     return values
 
 
-def read_values(ini_path: Path) -> tuple[dict[str, int], dict[str, int]]:
+def read_values(ini_path: Path) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
     testtop_values = dict(TESTTOP_DEFAULTS)
     matrix_values = dict(MATRIX_DEFAULTS)
+    tltest_values = dict(TLTEST_DEFAULTS)
     if not ini_path.exists():
-        return testtop_values, matrix_values
+        return testtop_values, matrix_values, tltest_values
 
     parser = configparser.ConfigParser()
     parser.read(ini_path)
     testtop_values = read_section_values(parser, "testtop", TESTTOP_DEFAULTS)
     matrix_values = read_section_values(parser, "matrix", MATRIX_DEFAULTS)
-    return testtop_values, matrix_values
+    tltest_values = read_section_values(parser, "tltest", TLTEST_DEFAULTS, min_value=0)
+    return testtop_values, matrix_values, tltest_values
+
+
+def update_tltest_ini(path: Path, values: dict[str, int]) -> None:
+    if not path.exists():
+        raise FileNotFoundError(f"tltest ini file not found: {path}")
+
+    content = path.read_text(encoding="utf-8")
+    key_map = {
+        "cache.cagent.sets": values["l1_sets"],
+        "cache.cagent.ways": values["l1_ways"],
+    }
+
+    for key, value in key_map.items():
+        pattern = re.compile(rf"^(\s*{re.escape(key)}\s*=\s*)([^#\n]*?)(\s*(#.*)?)$", re.MULTILINE)
+        if pattern.search(content):
+            content = pattern.sub(rf"\g<1>{value}\g<3>", content, count=1)
+            continue
+
+        section_match = re.search(r"(?m)^\[tltest\.config\]\s*$", content)
+        if not section_match:
+            raise ValueError(f"[tltest.config] section not found in {path}")
+
+        insert_pos = section_match.end()
+        next_section_match = re.search(r"(?m)^\[", content[insert_pos:])
+        if next_section_match:
+            insert_pos = insert_pos + next_section_match.start()
+        else:
+            insert_pos = len(content)
+
+        insertion = f"{key:<28}= {value}\n"
+        content = content[:insert_pos] + insertion + content[insert_pos:]
+
+    write_if_changed(path, content)
 
 
 def render_testtop_scala(values: dict[str, int]) -> str:
@@ -108,11 +153,13 @@ def write_if_changed(path: Path, content: str) -> None:
 
 def main() -> int:
     args = parse_args()
-    if not args.out_scala and not args.out_matrix_header:
-        raise ValueError("At least one output must be provided: --out-scala or --out-matrix-header")
+    if not args.out_scala and not args.out_matrix_header and not args.out_tltest_ini:
+        raise ValueError(
+            "At least one output must be provided: --out-scala or --out-matrix-header or --out-tltest-ini"
+        )
 
     ini_path = Path(args.ini)
-    testtop_values, matrix_values = read_values(ini_path)
+    testtop_values, matrix_values, tltest_values = read_values(ini_path)
 
     if args.out_scala:
         out_scala_path = Path(args.out_scala)
@@ -121,6 +168,10 @@ def main() -> int:
     if args.out_matrix_header:
         out_header_path = Path(args.out_matrix_header)
         write_if_changed(out_header_path, render_matrix_header(matrix_values))
+
+    if args.out_tltest_ini:
+        out_tltest_ini_path = Path(args.out_tltest_ini)
+        update_tltest_ini(out_tltest_ini_path, tltest_values)
 
     return 0
 

@@ -10,6 +10,7 @@ CFG_INI=${BASE}/configuration.ini
 CFG_GEN=${BASE}/scripts/gen_testtop_ini_params.py
 CFG_SCALA_OUT=${BASE}/CoupledL2/src/test/scala/TestTopIniParams.scala
 CFG_MATRIX_HEADER_OUT=${BASE}/Matrix-tests/isa/generated_matrix_config.h
+CFG_TLTEST_INI_OUT=${BASE}/tl-test-new-matrix/configs/user.tltest.ini
 
 THREADS_BUILD=${THREADS_BUILD:-$(($(nproc)/2))}
 
@@ -69,7 +70,7 @@ done
 
 if [ $M -eq 1 ] || [ $N -eq 1 ] || [ $L -eq 1 ] || [ $R -eq 1 ] || [ $T -eq 1 ] || [ $C -eq 1 ]; then
     echo "********** generate configuration artifacts **********"
-    python3 ${CFG_GEN} --ini ${CFG_INI} --out-scala ${CFG_SCALA_OUT} --out-matrix-header ${CFG_MATRIX_HEADER_OUT}
+    python3 ${CFG_GEN} --ini ${CFG_INI} --out-scala ${CFG_SCALA_OUT} --out-matrix-header ${CFG_MATRIX_HEADER_OUT} --out-tltest-ini ${CFG_TLTEST_INI_OUT}
 fi
 
 if [ $M -eq 1 ]; then
