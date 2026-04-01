@@ -47,29 +47,85 @@ git submodule update --init --recursive
 
 ## Usage
 
+
 ### Quick Start with run.sh
 
-The `run.sh` script provides a convenient way to build and run workloads:
+`run.sh` 脚本用于一键式地构建和运行各类测试流程，支持多种参数组合。使用前请先配置环境变量：
 
 ```bash
-# Set up environment variables first
 source env.sh
-
-# Build matrix workload and linux kernel
-./run.sh -m -l
-
-# Build NEMU
-./run.sh -n
-
-# Run workload on NEMU and generate address sequences
-./run.sh -r
 ```
 
-Available options:
-- `-m`: Build matrix workload (requires `-l` to also be set)
-- `-n`: Build NEMU
-- `-l`: Build linux kernel and OpenSBI
-- `-r`: Run workload on NEMU and process traces
+常用命令示例：
+
+```bash
+# 构建 matrix workload、Linux kernel 和 OpenSBI
+./run.sh -m
+
+# 构建 NEMU
+./run.sh -n
+
+# 在 NEMU 上生成 workload trace
+./run.sh -t
+
+# 远程主机上生成 trace 并拉回
+./run.sh -T
+
+# 编译 RTL 和 verilator
+./run.sh -c
+
+# 编译 tl-test
+./run.sh -l
+
+# 在 TL-Test 上运行 trace
+./run.sh -r
+
+# 分析最近一次运行并输出 PNG 图
+./run.sh -a
+```
+
+#### 参数说明
+
+| 参数 | 作用 |
+|------|------|
+| `-m` | 构建 matrix workload、Linux kernel 和 OpenSBI |
+| `-n` | 构建 NEMU |
+| `-t` | 在本地 NEMU 上运行 workload 并生成 trace |
+| `-T` | 在远程主机（通过 ssh）运行 NEMU 并拉回 trace |
+| `-c` | 编译 RTL 和 verilator（自动触发 `-l`）|
+| `-l` | 编译 tl-test |
+| `-r` | 在 TL-Test 上运行 trace 并提取性能日志 |
+| `-a` | 分析最近一次运行：输出配置/尺寸、周期、关键计数器，并调用脚本绘制 MSHR PNG 图 |
+
+> 多参数可组合使用，脚本会自动生成配置文件并按顺序执行相关流程。
+
+#### 详细流程说明
+
+- 任何涉及构建/运行的参数（如 `-m`, `-n`, `-l`, `-r`, `-t`, `-c`）都会首先自动生成配置文件。
+- `-m` 会依次编译 matrix workload、Linux kernel 和 OpenSBI。
+- `-n` 编译 NEMU 仿真器。
+- `-t` 在本地 NEMU 上运行 workload，生成 trace 并自动拷贝到 tl-test 目录。
+- `-T` 在远程主机上通过 ssh 执行 `-t`，并拉回 trace 文件。
+- `-c` 编译 RTL 和 verilator，并自动触发 `-l`（tl-test 编译）。
+- `-l` 编译 tl-test 仿真环境。
+- `-r` 在 tl-test 上运行 trace，自动提取性能日志。
+- `-a` 分析最近一次仿真结果，包含：
+	- 配置与规模分析（ini、缓存容量、矩阵尺寸）
+	- 仿真周期提取（从 `tltest_v3lt.log`）
+	- L2/L3 关键请求计数器汇总
+	- 调用 `scripts/plot_mshr.py` 输出 `l2_mshr_snapshot.png` 和 `l3_mshr_snapshot.png`（不弹窗）
+
+如需查看帮助信息：
+
+```bash
+./run.sh
+```
+或
+```bash
+./run.sh -h
+```
+
+脚本会输出所有参数及其说明。
 
 ### Download and prepare Linux kernel
 

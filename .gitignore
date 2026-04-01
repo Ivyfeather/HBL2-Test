@@ -1,1 +1,5 @@
 linux-kernel/
+__pycache__/
+l2_mshr_snapshot.png
+l3_mshr_snapshot.png
+perf.log

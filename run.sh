@@ -14,35 +14,51 @@ CFG_MATRIX_HEADER_OUT=${BASE}/Matrix-tests/isa/generated_matrix_config.h
 THREADS_BUILD=${THREADS_BUILD:-$(($(nproc)/2))}
 
 print_help() {
-    echo "Usage: $0 [-mntclr]"
+    echo "Usage: $0 [-mntclrTa]"
     echo "  -m: build matrix workload + linux kernel + opensbi"
     echo "  -n: build NEMU"
     echo "  -t: generate workload trace on NEMU"
+    echo "  -T: run -t on remote host via ssh and fetch line_trace.txt"
     echo "  -c: RTL and verilator compilation"
     echo "  -l: tl-test compilation"
     echo "  -r: run trace on TL-Test"
+    echo "  -a: analyze latest run (ini/cycles/counters/plot)"
 }
 
 M=0
 N=0
 T=0
+RT=0
 C=0
 L=0
 R=0
+A=0
+
+REMOTE_HOST=${REMOTE_HOST:-172.19.20.103}
+REMOTE_USER=${REMOTE_USER:-}
+REMOTE_BASE=${REMOTE_BASE:-${BASE}}
+
+if [ -n "${REMOTE_USER}" ]; then
+    SSH_TARGET="${REMOTE_USER}@${REMOTE_HOST}"
+else
+    SSH_TARGET="${REMOTE_HOST}"
+fi
 
 if [ $# -eq 0 ]; then
     print_help
     exit 1
 fi
 
-while getopts "mntclr" OPT; do
+while getopts "mntclrTa" OPT; do
     case $OPT in
         m) M=1;;
         n) N=1;;
         t) T=1;;
+        T) RT=1;;
         c) C=1;;
         l) L=1;;
         r) R=1;;
+        a) A=1;;
         \?)
             echo "Unknown option: -$OPT"
             print_help
@@ -90,6 +106,11 @@ if [ $T -eq 1 ]; then
     cp ${NEMU}/line_trace.txt ${TLTEST}
 fi
 
+if [ $RT -eq 1 ]; then
+    echo "********** run workload on remote NEMU (${SSH_TARGET}) **********"
+    ssh ${SSH_TARGET} "bash -lc 'set -e; cd \"${REMOTE_BASE}\"; source env.sh; ./run.sh -t'"
+fi
+
 if [ $C -eq 1 ]; then
     echo "********** RTL and verilator compilation **********"
     L=1
@@ -112,6 +133,22 @@ if [ $R -eq 1 ]; then
     echo "********** run trace on TL-Test **********"
     cd ${TLTEST}
     make run
+    PERF_LOG=${TLTEST}/run/tltest_v3lt_perf.log
+    if [ -f ${TLTEST}/run/tltest_v3lt.log ]; then
+        awk '/^\[PERF \]/{print}' ${TLTEST}/run/tltest_v3lt.log > ${PERF_LOG}
+        echo "PERF lines saved to ${PERF_LOG}"
+    else
+        echo "Warning: ${TLTEST}/run/tltest_v3lt.log not found, skip PERF extraction"
+    fi
     cd ..
+fi
+
+if [ $A -eq 1 ]; then
+    echo "********** analyze latest run **********"
+    python3 ${BASE}/scripts/analyze_run.py \
+      --ini ${CFG_INI} \
+      --log ${TLTEST}/run/tltest_v3lt.log \
+      --perf ${TLTEST}/run/tltest_v3lt_perf.log \
+      --db ${TLTEST}/run/chiseldb.db
 fi
 
