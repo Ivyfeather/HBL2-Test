@@ -11,6 +11,8 @@ TESTTOP_DEFAULTS = {
     "l2_sets": 128,
     "l2_ways": 8,
     "l2_banks": 1,
+    "l3cdir_sets": 128,
+    "l3cdir_ways": 10,
     "l3_sets": 512,
     "l3_ways": 8,
     "l3_banks": 1,
@@ -75,6 +77,8 @@ object TestTopIniParams {
   val l2Sets: Int = %(l2_sets)d
   val l2Ways: Int = %(l2_ways)d
   val l2Banks: Int = %(l2_banks)d
+  val l3CDirSets: Int = %(l3cdir_sets)d
+  val l3CDirWays: Int = %(l3cdir_ways)d
 
   val l3Sets: Int = %(l3_sets)d
   val l3Ways: Int = %(l3_ways)d
