@@ -82,35 +82,67 @@ def read_values(ini_path: Path) -> tuple[dict[str, int], dict[str, int], dict[st
     return testtop_values, matrix_values, tltest_values
 
 
-def update_tltest_ini(path: Path, values: dict[str, int]) -> None:
+def _upsert_key_in_section(content: str, section: str, key: str, value: int | str) -> str:
+    pattern = re.compile(rf"^(\s*{re.escape(key)}\s*=\s*)([^#\n]*?)(\s*(#.*)?)$", re.MULTILINE)
+    if pattern.search(content):
+        return pattern.sub(rf"\g<1>{value}\g<3>", content, count=1)
+
+    section_match = re.search(rf"(?m)^\[{re.escape(section)}\]\s*$", content)
+    if not section_match:
+        raise ValueError(f"[{section}] section not found in target file")
+
+    insert_pos = section_match.end()
+    next_section_match = re.search(r"(?m)^\[", content[insert_pos:])
+    if next_section_match:
+        insert_pos = insert_pos + next_section_match.start()
+    else:
+        insert_pos = len(content)
+
+    insertion = f"{key:<28}= {value}\n"
+    return content[:insert_pos] + insertion + content[insert_pos:]
+
+
+def _rewrite_sequence_modes(content: str, mode_count: int, mode_value: str) -> str:
+    section_match = re.search(r"\[tltest\.sequence\]", content)
+    if not section_match:
+        raise ValueError("[tltest.sequence] section not found in target file")
+
+    body_start = section_match.end()
+    next_section_match = re.search(r"(?m)^\[", content[body_start:])
+    if next_section_match:
+        body_end = body_start + next_section_match.start()
+    else:
+        body_end = len(content)
+
+    body = content[body_start:body_end]
+    body_lines = body.splitlines(keepends=True)
+
+    # Keep comments/blank lines and remove all existing mode.N assignments.
+    kept_lines = [ln for ln in body_lines if not re.match(r"^\s*mode\.\d+\s*=", ln)]
+    generated_lines = [f"mode.{i:<22}= {mode_value}\n" for i in range(mode_count)]
+
+    # Always start a new line after the section header.
+    new_body = "\n" + "".join(generated_lines) + "".join(kept_lines)
+
+    return content[:body_start] + new_body + content[body_end:]
+
+
+def update_tltest_ini(path: Path, tltest_values: dict[str, int], testtop_values: dict[str, int]) -> None:
     if not path.exists():
         raise FileNotFoundError(f"tltest ini file not found: {path}")
 
     content = path.read_text(encoding="utf-8")
     key_map = {
-        "cache.cagent.sets": values["l1_sets"],
-        "cache.cagent.ways": values["l1_ways"],
+        "cache.cagent.sets": tltest_values["l1_sets"],
+        "cache.cagent.ways": tltest_values["l1_ways"],
+        "core.tl_m": testtop_values["l2_banks"],
     }
 
     for key, value in key_map.items():
-        pattern = re.compile(rf"^(\s*{re.escape(key)}\s*=\s*)([^#\n]*?)(\s*(#.*)?)$", re.MULTILINE)
-        if pattern.search(content):
-            content = pattern.sub(rf"\g<1>{value}\g<3>", content, count=1)
-            continue
+        content = _upsert_key_in_section(content, "tltest.config", key, value)
 
-        section_match = re.search(r"(?m)^\[tltest\.config\]\s*$", content)
-        if not section_match:
-            raise ValueError(f"[tltest.config] section not found in {path}")
-
-        insert_pos = section_match.end()
-        next_section_match = re.search(r"(?m)^\[", content[insert_pos:])
-        if next_section_match:
-            insert_pos = insert_pos + next_section_match.start()
-        else:
-            insert_pos = len(content)
-
-        insertion = f"{key:<28}= {value}\n"
-        content = content[:insert_pos] + insertion + content[insert_pos:]
+    sequence_count = testtop_values["l2_banks"] + 2
+    content = _rewrite_sequence_modes(content, sequence_count, "TRACE_WITH_FENCE")
 
     write_if_changed(path, content)
 
@@ -171,7 +203,7 @@ def main() -> int:
 
     if args.out_tltest_ini:
         out_tltest_ini_path = Path(args.out_tltest_ini)
-        update_tltest_ini(out_tltest_ini_path, tltest_values)
+        update_tltest_ini(out_tltest_ini_path, tltest_values, testtop_values)
 
     return 0
 
