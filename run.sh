@@ -19,11 +19,11 @@ print_help() {
     echo "  -m: build matrix workload + linux kernel + opensbi"
     echo "  -n: build NEMU"
     echo "  -t: generate workload trace on NEMU"
-    echo "  -T: run -t on remote host via ssh and fetch line_trace.txt"
+    echo "  -T: run -mt on remote host via ssh and fetch line_trace.txt"
     echo "  -c: RTL and verilator compilation"
     echo "  -l: tl-test compilation"
     echo "  -r: run trace on TL-Test"
-    echo "  -a: analyze latest run (ini/cycles/counters/plot)"
+    echo "  -a: analyze latest run via scripts/analyze_run.py <run_dir>"
 }
 
 M=0
@@ -108,8 +108,8 @@ if [ $T -eq 1 ]; then
 fi
 
 if [ $RT -eq 1 ]; then
-    echo "********** run workload on remote NEMU (${SSH_TARGET}) **********"
-    ssh ${SSH_TARGET} "bash -lc 'set -e; cd \"${REMOTE_BASE}\"; source env.sh; ./run.sh -t'"
+    echo "********** run -mt on remote host (${SSH_TARGET}) **********"
+    ssh ${SSH_TARGET} "bash -lc 'set -e; cd \"${REMOTE_BASE}\"; source env.sh; ./run.sh -mt'"
 fi
 
 if [ $C -eq 1 ]; then
@@ -141,15 +141,12 @@ if [ $R -eq 1 ]; then
     else
         echo "Warning: ${TLTEST}/run/tltest_v3lt.log not found, skip PERF extraction"
     fi
+    cp configuration.ini ${TLTEST}/run/
     cd ..
 fi
 
 if [ $A -eq 1 ]; then
     echo "********** analyze latest run **********"
-    python3 ${BASE}/scripts/analyze_run.py \
-      --ini ${CFG_INI} \
-      --log ${TLTEST}/run/tltest_v3lt.log \
-      --perf ${TLTEST}/run/tltest_v3lt_perf.log \
-      --db ${TLTEST}/run/chiseldb.db
+    python3 ${BASE}/scripts/analyze_run.py ${TLTEST}/run
 fi
 

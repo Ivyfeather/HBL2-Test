@@ -91,7 +91,7 @@ source env.sh
 | `-m` | 构建 matrix workload、Linux kernel 和 OpenSBI |
 | `-n` | 构建 NEMU |
 | `-t` | 在本地 NEMU 上运行 workload 并生成 trace |
-| `-T` | 在远程主机（通过 ssh）运行 NEMU 并拉回 trace |
+| `-T` | 在远程主机（通过 ssh）运行 `-mt` 流程 |
 | `-c` | 编译 RTL 和 verilator（自动触发 `-l`）|
 | `-l` | 编译 tl-test |
 | `-r` | 在 TL-Test 上运行 trace 并提取性能日志 |
@@ -99,17 +99,31 @@ source env.sh
 
 > 多参数可组合使用，脚本会自动生成配置文件并按顺序执行相关流程。
 
+#### 当前实践建议
+
+- 完整流程推荐命令：
+
+```bash
+./run.sh -Tclra
+```
+
+- 如果只修改了矩阵规模（`m/k/n`），没有修改缓存相关参数，可跳过 `-c` 和 `-l`，直接：
+
+```bash
+./run.sh -Tra
+```
+
 #### 详细流程说明
 
 - 任何涉及构建/运行的参数（如 `-m`, `-n`, `-l`, `-r`, `-t`, `-c`）都会首先自动生成配置文件。
 - `-m` 会依次编译 matrix workload、Linux kernel 和 OpenSBI。
 - `-n` 编译 NEMU 仿真器。
 - `-t` 在本地 NEMU 上运行 workload，生成 trace 并自动拷贝到 tl-test 目录。
-- `-T` 在远程主机上通过 ssh 执行 `-t`，并拉回 trace 文件。
+- `-T` 在远程主机上通过 ssh 执行 `-mt`
 - `-c` 编译 RTL 和 verilator，并自动触发 `-l`（tl-test 编译）。
 - `-l` 编译 tl-test 仿真环境。
 - `-r` 在 tl-test 上运行 trace，自动提取性能日志。
-- `-a` 分析最近一次仿真结果，包含：
+- `-a` 调用 `scripts/analyze_run.py <run目录>`（当前为 `tl-test-new-matrix/run`），分析最近一次仿真结果，包含：
 	- 配置与规模分析（ini、缓存容量、矩阵尺寸）
 	- 仿真周期提取（从 `tltest_v3lt.log`）
 	- L2/L3 关键请求计数器汇总

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import configparser
-import os
 import re
 import subprocess
 from pathlib import Path
@@ -21,11 +20,27 @@ from typing import Dict, Tuple
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Analyze latest TL test run")
-    parser.add_argument("--ini", required=True, help="Path to configuration.ini")
-    parser.add_argument("--log", required=True, help="Path to tltest_v3lt.log")
-    parser.add_argument("--perf", required=True, help="Path to tltest_v3lt_perf.log")
-    parser.add_argument("--db", required=True, help="Path to chiseldb.db")
+    parser.add_argument("run_dir", help="Path to tl-test run directory")
+    parser.add_argument("--no-plot", action="store_true", help="Skip running plot_mshr.py")
     return parser.parse_args()
+
+
+def resolve_paths(run_dir: Path, script_repo_root: Path) -> Tuple[Path, Path, Path, Path]:
+    candidate_ini = run_dir / "configuration.ini"
+    if candidate_ini.exists():
+        ini_path = candidate_ini
+    else:
+        candidate_repo_root = run_dir.parent.parent
+        candidate_repo_ini = candidate_repo_root / "configuration.ini"
+        if candidate_repo_ini.exists():
+            ini_path = candidate_repo_ini
+        else:
+            ini_path = script_repo_root / "configuration.ini"
+
+    log_path = run_dir / "tltest_v3lt.log"
+    perf_path = run_dir / "tltest_v3lt_perf.log"
+    db_path = run_dir / "chiseldb.db"
+    return ini_path, log_path, perf_path, db_path
 
 
 def read_ini(ini_path: Path) -> Dict[str, Dict[str, str]]:
@@ -176,9 +191,9 @@ def print_key_counters(log_path: Path, perf_path: Path) -> None:
         print(f"    {k:24s}: {v if v is not None else 'N/A'}")
 
 
-def run_plot_mshr(repo_root: Path, db_path: Path) -> None:
+def run_plot_mshr(script_repo_root: Path, db_path: Path) -> None:
     print("\n=== [4] Run plot_mshr.py ===")
-    plot_script = repo_root / "scripts" / "plot_mshr.py"
+    plot_script = script_repo_root / "scripts" / "plot_mshr.py"
     if not plot_script.exists():
         print(f"  plot script not found: {plot_script}")
         return
@@ -190,7 +205,7 @@ def run_plot_mshr(repo_root: Path, db_path: Path) -> None:
     print("  Running:", " ".join(cmd))
     print("  Output: PNG files only (no interactive window).")
     try:
-        subprocess.run(cmd, check=False, cwd=str(repo_root))
+        subprocess.run(cmd, check=False, cwd=str(script_repo_root))
     except Exception as e:
         print(f"  Failed to run plot_mshr.py: {e}")
 
@@ -198,17 +213,19 @@ def run_plot_mshr(repo_root: Path, db_path: Path) -> None:
 def main() -> int:
     args = parse_args()
 
-    ini_path = Path(args.ini)
-    log_path = Path(args.log)
-    perf_path = Path(args.perf)
-    db_path = Path(args.db)
-    repo_root = Path(__file__).resolve().parent.parent
+    run_dir = Path(args.run_dir).resolve()
+    if not run_dir.exists() or not run_dir.is_dir():
+        raise FileNotFoundError(f"run directory not found: {run_dir}")
+
+    script_repo_root = Path(__file__).resolve().parent.parent
+    ini_path, log_path, perf_path, db_path = resolve_paths(run_dir, script_repo_root)
 
     ini_data = read_ini(ini_path)
     analyze_config_and_sizes(ini_data)
     print_sim_cycles(log_path)
     print_key_counters(log_path, perf_path)
-    run_plot_mshr(repo_root, db_path)
+    if not args.no_plot:
+        run_plot_mshr(script_repo_root, db_path)
     return 0
 
 
