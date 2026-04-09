@@ -1,5 +1,10 @@
 linux-kernel/
 __pycache__/
-l2_mshr_snapshot.png
-l3_mshr_snapshot.png
 perf.log
+*.log
+*.txt
+*.o
+*.a
+llvm-project-matrix-0.3
+llm_sim_single_chip
+.cache

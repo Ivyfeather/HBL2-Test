@@ -170,6 +170,10 @@ def print_key_counters(log_path: Path, perf_path: Path) -> None:
         "releaseData",
         "get_miss",
     ]
+    l2_receive_keys = [
+        "sinkA_get_req",
+        "sinkA_put_req",
+    ]
     l3_keys = [
         "hc_req_acquire_block",
         "hc_req_acquire_perm",
@@ -182,6 +186,11 @@ def print_key_counters(log_path: Path, perf_path: Path) -> None:
 
     print("  L2 (coupledL2.tl2tl.MainPipe):")
     for k in l2_keys:
+        v = metrics.get(k)
+        print(f"    {k:24s}: {v if v is not None else 'N/A'}")
+
+    print("  L2 receive counts (coupledL2.SinkA):")
+    for k in l2_receive_keys:
         v = metrics.get(k)
         print(f"    {k:24s}: {v if v is not None else 'N/A'}")
 

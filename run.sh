@@ -8,14 +8,15 @@ TLTEST=${BASE}/tl-test-new-matrix
 
 CFG_INI=${BASE}/configuration.ini
 CFG_GEN=${BASE}/scripts/gen_testtop_ini_params.py
-CFG_SCALA_OUT=${BASE}/CoupledL2/src/test/scala/TestTopIniParams.scala
+CFG_SCALA_OUT=${BASE}/HBL2/src/test/scala/TestTopIniParams.scala
 CFG_MATRIX_HEADER_OUT=${BASE}/Matrix-tests/isa/generated_matrix_config.h
-CFG_TLTEST_INI_OUT=${BASE}/tl-test-new-matrix/configs/user.tltest.ini
+CFG_TLTEST_INI_OUT=${BASE}/tl-test-new-matrix/configs/coupledL2-test-matrix.tltest.ini
 
 THREADS_BUILD=${THREADS_BUILD:-$(($(nproc)/2))}
 
 print_help() {
-    echo "Usage: $0 [-mntclrTa]"
+    echo "Usage: $0 [-mntclrTas]"
+    echo "  -s: generate workload trace using local simulator, filter it, and process it (replaces -t)"
     echo "  -m: build matrix workload + linux kernel + opensbi"
     echo "  -n: build NEMU"
     echo "  -t: generate workload trace on NEMU"
@@ -34,6 +35,7 @@ C=0
 L=0
 R=0
 A=0
+S=0
 
 REMOTE_HOST=${REMOTE_HOST:-172.19.20.103}
 REMOTE_USER=${REMOTE_USER:-}
@@ -50,11 +52,12 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-while getopts "mntclrTa" OPT; do
+while getopts "mntclrTas" OPT; do
     case $OPT in
         m) M=1;;
         n) N=1;;
         t) T=1;;
+        s) S=1;;
         T) RT=1;;
         c) C=1;;
         l) L=1;;
@@ -68,7 +71,7 @@ while getopts "mntclrTa" OPT; do
     esac
 done
 
-if [ $M -eq 1 ] || [ $N -eq 1 ] || [ $L -eq 1 ] || [ $R -eq 1 ] || [ $T -eq 1 ] || [ $C -eq 1 ]; then
+if [ $M -eq 1 ] || [ $N -eq 1 ] || [ $L -eq 1 ] || [ $R -eq 1 ] || [ $T -eq 1 ] || [ $C -eq 1 ] || [ $S -eq 1 ]; then
     echo "********** generate configuration artifacts **********"
     python3 ${CFG_GEN} --ini ${CFG_INI} --out-scala ${CFG_SCALA_OUT} --out-matrix-header ${CFG_MATRIX_HEADER_OUT} --out-tltest-ini ${CFG_TLTEST_INI_OUT}
 fi
@@ -107,6 +110,19 @@ if [ $T -eq 1 ]; then
     cp ${NEMU}/line_trace.txt ${TLTEST}
 fi
 
+if [ $S -eq 1 ]; then
+    echo "********** run workload via local simulator (sim) **********"
+    cd ${TESTS}/sim
+    ./run_sim.sh > "${NEMU}/stderr_sim_raw.txt"
+    python3 ./filter_trace.py "${NEMU}/stderr_sim_raw.txt" "${NEMU}/stderr.txt"
+    cd ${BASE}
+
+    echo "processing simulator trace with addr.py"
+    cd ${NEMU} && python3 addr.py && cd ${BASE}
+
+    cp ${NEMU}/line_trace.txt ${TLTEST}
+fi
+
 if [ $RT -eq 1 ]; then
     echo "********** run -mt on remote host (${SSH_TARGET}) **********"
     ssh ${SSH_TARGET} "bash -lc 'set -e; cd \"${REMOTE_BASE}\"; source env.sh; ./run.sh -mt'"
@@ -117,7 +133,7 @@ if [ $C -eq 1 ]; then
     L=1
     cd ${TLTEST}
     make coupledL2-compile -j${THREADS_BUILD}
-    make coupledL2-verilog-test-top-l2l3  -j${THREADS_BUILD}
+    make coupledL2-verilog-test-top-matrix -j${THREADS_BUILD}
     make coupledL2-verilate -j${THREADS_BUILD}
     cd ..
 fi
@@ -125,7 +141,7 @@ fi
 if [ $L -eq 1 ]; then
     echo "********** tl-test compilation **********"
     cd ${TLTEST}
-    make tltest-config-coupledL2-test-l2l3-full -j${THREADS_BUILD}
+    make tltest-config-coupledL2-test-matrix -j${THREADS_BUILD}
     make tltest-build-all-coupledL2 -j${THREADS_BUILD}
     cd ..
 fi
