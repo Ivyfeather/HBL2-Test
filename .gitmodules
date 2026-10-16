@@ -3,7 +3,7 @@
 	url = https://github.com/cailuoshan/NEMU-Matrix.git
 [submodule "tl-test-new"]
 	path = tl-test-new-matrix
-	url = https://github.com/OpenXiangShan/tl-test-new.git
+	url = https://github.com/5577755/tl-test-new.git
 [submodule "Matrix-tests"]
 	path = Matrix-tests
 	url = https://github.com/Ivyfeather/Matrix-tests
